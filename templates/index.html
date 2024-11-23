@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Multi Link Converter</title>
+    <style>
+        :root {
+            --primary-gradient: linear-gradient(135deg, #1e2024 0%, #23272b 100%);
+            --secondary-gradient: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+            --success-color: #2ecc71;
+            --error-color: #e74c3c;
+            --text-color: #ecf0f1;
+            --border-color: #34495e;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: var(--primary-gradient);
+            color: var(--text-color);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin: 0;
+            background: var(--secondary-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .input-section {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            border: 1px solid var(--border-color);
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 5px;
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-color);
+            font-size: 16px;
+        }
+
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            background: var(--secondary-gradient);
+            color: white;
+            cursor: pointer;
+            font-size: 16px;
+            transition: transform 0.2s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+        }
+
+        .results-section {
+            display: grid;
+            gap: 20px;
+        }
+
+        .result-card {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+        }
+
+        .service-name {
+            font-size: 1.2em;
+            margin-bottom: 10px;
+            color: #3498db;
+        }
+
+        .file-info {
+            margin: 10px 0;
+            font-size: 0.9em;
+            color: #bdc3c7;
+        }
+
+        .link-container {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-top: 10px;
+        }
+
+        .link-input {
+            flex: 1;
+            padding: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            border-radius: 5px;
+            color: var(--text-color);
+        }
+
+        .copy-btn {
+            padding: 8px 16px;
+            background: var(--success-color);
+            border: none;
+            border-radius: 5px;
+            color: white;
+            cursor: pointer;
+        }
+
+        .copy-all-btn {
+            width: 100%;
+            margin-top: 20px;
+            background: var(--secondary-gradient);
+            padding: 15px;
+        }
+
+        .success {
+            color: var(--success-color);
+        }
+
+        .error {
+            color: var(--error-color);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            font-style: italic;
+            color: #bdc3c7;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Multi Link Converter</h1>
+        </div>
+
+        <div class="input-section">
+            <div class="input-group">
+                <input type="text" id="driveLink" placeholder="Enter Google Drive Link">
+                <button onclick="convertAll()">Convert All</button>
+            </div>
+        </div>
+
+        <div id="results" class="results-section"></div>
+    </div>
+
+    <script>
+        async function convertAll() {
+            const driveLink = document.getElementById('driveLink').value;
+            if (!driveLink) {
+                alert('Please enter a Drive link');
+                return;
+            }
+
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '<div class="loading">Converting... Please wait...</div>';
+
+            const services = ['gdtot', 'filepress', 'hubdrive'];
+            let allResults = '';
+
+            for (const service of services) {
+                try {
+                    const response = await fetch('/convert', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            driveLink: driveLink,
+                            service: service
+                        })
+                    });
+
+                    const result = await response.json();
+                    allResults += createResultCard(service, result);
+                } catch (error) {
+                    allResults += createErrorCard(service, error.message);
+                }
+            }
+
+            resultsDiv.innerHTML = allResults;
+
+            if (allResults) {
+                resultsDiv.innerHTML += `
+                    <button onclick="copyAllLinks()" class="copy-all-btn">
+                        Copy All Links
+                    </button>
+                `;
+            }
+        }
+
+        function createResultCard(service, result) {
+            const success = result.success;
+            return `
+                <div class="result-card">
+                    <div class="service-name">${service.toUpperCase()}</div>
+                    ${success ? `
+                        <div class="file-info">
+                            <div>Name: ${result.details?.name || 'N/A'}</div>
+                            <div>Size: ${formatFileSize(result.details?.size || 0)}</div>
+                        </div>
+                        <div class="link-container">
+                            <input type="text" value="${result.link}" readonly class="link-input" id="${service}-link">
+                            <button onclick="copyLink('${service}-link')" class="copy-btn">Copy</button>
+                        </div>
+                    ` : `
+                        <div class="error">${result.error}</div>
+                    `}
+                </div>
+            `;
+        }
+
+        function createErrorCard(service, error) {
+            return `
+                <div class="result-card">
+                    <div class="service-name">${service.toUpperCase()}</div>
+                    <div class="error">${error}</div>
+                </div>
+            `;
+        }
+
+        function copyLink(elementId) {
+            const input = document.getElementById(elementId);
+            input.select();
+            document.execCommand('copy');
+
+            const button = input.nextElementSibling;
+            button.textContent = 'Copied!';
+            setTimeout(() => {
+                button.textContent = 'Copy';
+            }, 2000);
+        }
+
+        function copyAllLinks() {
+            const links = document.querySelectorAll('.link-input');
+            const allLinks = Array.from(links)
+                .map(input => input.value)
+                .filter(link => link)
+                .join('\n');
+
+            if (allLinks) {
+                const temp = document.createElement('textarea');
+                temp.value = allLinks;
+                document.body.appendChild(temp);
+                temp.select();
+                document.execCommand('copy');
+                document.body.removeChild(temp);
+
+                const button = document.querySelector('.copy-all-btn');
+                button.textContent = 'All Links Copied!';
+                setTimeout(() => {
+                    button.textContent = 'Copy All Links';
+                }, 2000);
+            }
+        }
+
+        function formatFileSize(bytes) {
+            if (!bytes) return 'N/A';
+            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(1024));
+            return `${(bytes / Math.pow(1024, i)).toFixed(2)} ${sizes[i]}`;
+        }
+    </script>
+</body>
+
+</html>
